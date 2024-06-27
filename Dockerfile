@@ -11,8 +11,8 @@ COPY . /app
 RUN pip install --upgrade pip setuptools wheel
 RUN pip install -r requirements.txt
 
-# Make port 5000 available to the world outside this container
-EXPOSE 5000
+# Make port available to the world outside this container
+EXPOSE $PORT
 
 # Define environment variable
 ENV FLASK_APP=app.py
