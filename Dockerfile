@@ -12,10 +12,11 @@ RUN pip install --upgrade pip setuptools wheel
 RUN pip install -r requirements.txt
 
 # Make port available to the world outside this container
-EXPOSE $PORT
+EXPOSE 5000
 
 # Define environment variable
+ENV PORT=5000
 ENV FLASK_APP=app.py
 
 # Run app.py when the container launches
-CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:$PORT"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"]
