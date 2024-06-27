@@ -18,4 +18,4 @@ EXPOSE 5000
 ENV FLASK_APP=app.py
 
 # Run app.py when the container launches
-CMD ["flask", "run", "--host=0.0.0.0"]
+CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:$PORT"]
