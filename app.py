@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import pickle
 from pydub import AudioSegment
+from sklearn.ensemble import RandomForestClassifier  # Ensure the same sklearn version
 
 app = Flask(__name__)
 CORS(app)

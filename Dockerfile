@@ -14,7 +14,7 @@ RUN pip install -r requirements.txt
 # Make port available to the world outside this container
 EXPOSE 5000
 
-# Define environment variables
+# Define environment variable
 ENV PORT=5000
 ENV FLASK_APP=app.py
 
