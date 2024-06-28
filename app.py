@@ -7,7 +7,7 @@ import pandas as pd
 import pickle
 import logging
 from pydub import AudioSegment
-from sklearn.ensemble import RandomForestClassifier  # Ensure the same sklearn version
+from sklearn.ensemble import RandomForestClassifier
 
 app = Flask(__name__)
 CORS(app)
@@ -96,6 +96,9 @@ def predict():
             }
 
             return jsonify(result)
+        except KeyError as e:
+            app.logger.error(f"KeyError: {e}")
+            return jsonify({'error': 'Error processing the prediction'}), 500
         except Exception as e:
             app.logger.error(f"Error processing the prediction: {e}")
             return jsonify({'error': 'Error processing the prediction'}), 500
