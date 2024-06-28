@@ -69,6 +69,8 @@ def predict():
     if file:
         try:
             temp_wav_path = os.path.join('temp', 'temp_audio.wav')
+            if not os.path.exists('temp'):
+                os.makedirs('temp')
             file.save(temp_wav_path)
 
             mfcc_features = extract_mfcc(temp_wav_path)
