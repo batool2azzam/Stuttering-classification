@@ -5,16 +5,21 @@ import librosa
 import numpy as np
 import pandas as pd
 import pickle
+import logging
 from pydub import AudioSegment
 from sklearn.ensemble import RandomForestClassifier  # Ensure the same sklearn version
 
 app = Flask(__name__)
 CORS(app)
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Define the base path to the models directory
 models_dir = os.path.join(os.path.dirname(__file__), 'models')
 
-# Load models
+# Load models with error handling
 models = {}
 model_files = {
     'soundrep_model.pkl': 'soundrep_model',
@@ -23,8 +28,12 @@ model_files = {
 }
 
 for file, name in model_files.items():
-    with open(os.path.join(models_dir, file), 'rb') as f:
-        models[name] = pickle.load(f)
+    try:
+        with open(os.path.join(models_dir, file), 'rb') as f:
+            models[name] = pickle.load(f)
+        logger.info(f"Loaded model: {name}")
+    except Exception as e:
+        logger.error(f"Failed to load model {name}: {e}")
 
 # Load the original DataFrame to get column names
 df = pd.read_csv(os.path.join(models_dir, 'sep28k-mfcc.csv'))
@@ -66,9 +75,13 @@ def predict():
         mfcc_df = pd.DataFrame(mfcc_features, columns=column_names)
 
         # Predict stuttering types
-        soundrep_prediction = models['soundrep_model'].predict(mfcc_df)[0]
-        wordrep_prediction = models['wordrep_model'].predict(mfcc_df)[0]
-        prolongation_prediction = models['prolongation_model'].predict(mfcc_df)[0]
+        try:
+            soundrep_prediction = models['soundrep_model'].predict(mfcc_df)[0]
+            wordrep_prediction = models['wordrep_model'].predict(mfcc_df)[0]
+            prolongation_prediction = models['prolongation_model'].predict(mfcc_df)[0]
+        except Exception as e:
+            logger.error(f"Prediction error: {e}")
+            return jsonify({'error': 'Prediction failed'}), 500
 
         stuttering_types = []
         if soundrep_prediction == 1:
