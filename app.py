@@ -67,36 +67,36 @@ def predict():
         return jsonify({'error': 'No selected file'}), 400
 
     if file:
-        temp_wav_path = os.path.join('temp', 'temp_audio.wav')
-        file.save(temp_wav_path)
-
-        mfcc_features = extract_mfcc(temp_wav_path)
-        mfcc_features = mfcc_features.reshape(1, -1)
-        mfcc_df = pd.DataFrame(mfcc_features, columns=column_names)
-
-        # Predict stuttering types
         try:
+            temp_wav_path = os.path.join('temp', 'temp_audio.wav')
+            file.save(temp_wav_path)
+
+            mfcc_features = extract_mfcc(temp_wav_path)
+            mfcc_features = mfcc_features.reshape(1, -1)
+            mfcc_df = pd.DataFrame(mfcc_features, columns=column_names)
+
+            # Predict stuttering types
             soundrep_prediction = models['soundrep_model'].predict(mfcc_df)[0]
             wordrep_prediction = models['wordrep_model'].predict(mfcc_df)[0]
             prolongation_prediction = models['prolongation_model'].predict(mfcc_df)[0]
+
+            stuttering_types = []
+            if soundrep_prediction == 1:
+                stuttering_types.append('Sound Repetition')
+            if wordrep_prediction == 1:
+                stuttering_types.append('Word Repetition')
+            if prolongation_prediction == 1:
+                stuttering_types.append('Prolongation')
+
+            result = {
+                'stuttering': bool(stuttering_types),
+                'types': stuttering_types
+            }
+
+            return jsonify(result)
         except Exception as e:
-            logger.error(f"Prediction error: {e}")
-            return jsonify({'error': 'Prediction failed'}), 500
-
-        stuttering_types = []
-        if soundrep_prediction == 1:
-            stuttering_types.append('Sound Repetition')
-        if wordrep_prediction == 1:
-            stuttering_types.append('Word Repetition')
-        if prolongation_prediction == 1:
-            stuttering_types.append('Prolongation')
-
-        result = {
-            'stuttering': bool(stuttering_types),
-            'types': stuttering_types
-        }
-
-        return jsonify(result)
+            app.logger.error(f"Error processing the prediction: {e}")
+            return jsonify({'error': 'Error processing the prediction'}), 500
 
 if __name__ == '__main__':
     if not os.path.exists('temp'):
