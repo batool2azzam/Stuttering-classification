@@ -7,6 +7,7 @@ import pandas as pd
 import joblib
 import logging
 from pydub import AudioSegment
+import requests
 
 app = Flask(__name__)
 CORS(app)
@@ -57,49 +58,50 @@ def index():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part'}), 400
+    data = request.get_json()
 
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
+    if 'url' not in data:
+        return jsonify({'error': 'No URL provided'}), 400
 
-    if file:
-        try:
-            temp_wav_path = os.path.join('temp', 'temp_audio.wav')
-            if not os.path.exists('temp'):
-                os.makedirs('temp')
-            file.save(temp_wav_path)
+    audio_url = data['url']
+    temp_wav_path = os.path.join('temp', 'temp_audio.wav')
 
-            mfcc_features = extract_mfcc(temp_wav_path)
-            mfcc_features = mfcc_features.reshape(1, -1)
-            mfcc_df = pd.DataFrame(mfcc_features, columns=column_names)
+    try:
+        # Download the audio file from the URL
+        response = requests.get(audio_url)
+        with open(temp_wav_path, 'wb') as f:
+            f.write(response.content)
 
-            # Predict stuttering types
-            soundrep_prediction = models['soundrep_model'].predict(mfcc_df)[0]
-            wordrep_prediction = models['wordrep_model'].predict(mfcc_df)[0]
-            prolongation_prediction = models['prolongation_model'].predict(mfcc_df)[0]
+        # Process the audio file
+        mfcc_features = extract_mfcc(temp_wav_path)
+        mfcc_features = mfcc_features.reshape(1, -1)
+        mfcc_df = pd.DataFrame(mfcc_features, columns=column_names)
 
-            stuttering_types = []
-            if soundrep_prediction == 1:
-                stuttering_types.append('Sound Repetition')
-            if wordrep_prediction == 1:
-                stuttering_types.append('Word Repetition')
-            if prolongation_prediction == 1:
-                stuttering_types.append('Prolongation')
+        # Predict stuttering types
+        soundrep_prediction = models['soundrep_model'].predict(mfcc_df)[0]
+        wordrep_prediction = models['wordrep_model'].predict(mfcc_df)[0]
+        prolongation_prediction = models['prolongation_model'].predict(mfcc_df)[0]
 
-            result = {
-                'stuttering': bool(stuttering_types),
-                'types': stuttering_types
-            }
+        stuttering_types = []
+        if soundrep_prediction == 1:
+            stuttering_types.append('Sound Repetition')
+        if wordrep_prediction == 1:
+            stuttering_types.append('Word Repetition')
+        if prolongation_prediction == 1:
+            stuttering_types.append('Prolongation')
 
-            return jsonify(result)
-        except KeyError as e:
-            app.logger.error(f"KeyError: {e}")
-            return jsonify({'error': 'Error processing the prediction'}), 500
-        except Exception as e:
-            app.logger.error(f"Error processing the prediction: {e}")
-            return jsonify({'error': 'Error processing the prediction'}), 500
+        result = {
+            'stuttering': bool(stuttering_types),
+            'types': stuttering_types
+        }
+
+        return jsonify(result)
+    except KeyError as e:
+        app.logger.error(f"KeyError: {e}")
+        return jsonify({'error': 'Error processing the prediction'}), 500
+    except Exception as e:
+        app.logger.error(f"Error processing the prediction: {e}")
+        return jsonify({'error': 'Error processing the prediction'}), 500
 
 if __name__ == '__main__':
     if not os.path.exists('temp'):
