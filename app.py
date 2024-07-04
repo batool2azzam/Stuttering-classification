@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import joblib
 import logging
-import requests
 from pydub import AudioSegment
 
 app = Flask(__name__)
@@ -39,11 +38,6 @@ for file, name in model_files.items():
 df = pd.read_csv(os.path.join(models_dir, 'sep28k-mfcc.csv'))
 column_names = df.columns[-13:]
 
-def download_file(url, destination):
-    response = requests.get(url)
-    with open(destination, 'wb') as f:
-        f.write(response.content)
-
 # Function to extract MFCC features
 def extract_mfcc(file_path, max_pad_len=130):
     audio, sample_rate = librosa.load(file_path, res_type='kaiser_fast', sr=None)
@@ -64,49 +58,46 @@ def index():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    data = request.get_json()
-    if not data or 'url' not in data:
-        return jsonify({'error': 'No URL provided'}), 400
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
 
-    url = data['url']
-    temp_wav_path = os.path.join('temp', 'temp_audio.wav')
-    
-    try:
-        if not os.path.exists('temp'):
-            os.makedirs('temp')
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
 
-        # Download the audio file
-        download_file(url, temp_wav_path)
+    if file:
+        try:
+            temp_wav_path = os.path.join('temp', 'temp_audio.wav')
+            if not os.path.exists('temp'):
+                os.makedirs('temp')
+            file.save(temp_wav_path)
 
-        mfcc_features = extract_mfcc(temp_wav_path)
-        mfcc_features = mfcc_features.reshape(1, -1)
-        mfcc_df = pd.DataFrame(mfcc_features, columns=column_names)
+            mfcc_features = extract_mfcc(temp_wav_path)
+            mfcc_features = mfcc_features.reshape(1, -1)
+            mfcc_df = pd.DataFrame(mfcc_features, columns=column_names)
 
-        # Predict stuttering types
-        soundrep_prediction = models['soundrep_model'].predict(mfcc_df)[0]
-        wordrep_prediction = models['wordrep_model'].predict(mfcc_df)[0]
-        prolongation_prediction = models['prolongation_model'].predict(mfcc_df)[0]
+            # Predict stuttering types
+            soundrep_prediction = models['soundrep_model'].predict(mfcc_df)[0]
+            wordrep_prediction = models['wordrep_model'].predict(mfcc_df)[0]
+            prolongation_prediction = models['prolongation_model'].predict(mfcc_df)[0]
 
-        stuttering_types = []
-        if soundrep_prediction == 1:
-            stuttering_types.append('Sound Repetition')
-        if wordrep_prediction == 1:
-            stuttering_types.append('Word Repetition')
-        if prolongation_prediction == 1:
-            stuttering_types.append('Prolongation')
+            stuttering_types = []
+            if soundrep_prediction == 1:
+                stuttering_types.append('Sound Repetition')
+            if wordrep_prediction == 1:
+                stuttering_types.append('Word Repetition')
+            if prolongation_prediction == 1:
+                stuttering_types.append('Prolongation')
 
-        result = {
-            'stuttering': bool(stuttering_types),
-            'types': stuttering_types
-        }
+            result = {
+                'stuttering': bool(stuttering_types),
+                'types': stuttering_types
+            }
 
-        return jsonify(result)
-    except Exception as e:
-        app.logger.error(f"Error processing the prediction: {e}")
-        return jsonify({'error': 'Error processing the prediction'}), 500
-    finally:
-        if os.path.exists(temp_wav_path):
-            os.remove(temp_wav_path)
+            return jsonify(result)
+        except Exception as e:
+            app.logger.error(f"Error processing the prediction: {e}")
+            return jsonify({'error': 'Error processing the prediction'}), 500
 
 if __name__ == '__main__':
     if not os.path.exists('temp'):
