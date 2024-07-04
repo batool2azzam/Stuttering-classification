@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 import joblib
 import logging
-from pydub import AudioSegment
 import requests
+from pydub import AudioSegment
 
 app = Flask(__name__)
 CORS(app)
@@ -22,14 +22,15 @@ models_dir = os.path.join(os.path.dirname(__file__), 'models')
 # Load models with error handling
 models = {}
 model_files = {
-    'soundrep_model.joblib': 'soundrep_model',
-    'wordrep_model.joblib': 'wordrep_model',
-    'prolongation_model.joblib': 'prolongation_model'
+    'soundrep_model.pkl': 'soundrep_model',
+    'wordrep_model.pkl': 'wordrep_model',
+    'prolongation_model.pkl': 'prolongation_model'
 }
 
 for file, name in model_files.items():
     try:
-        models[name] = joblib.load(os.path.join(models_dir, file))
+        with open(os.path.join(models_dir, file), 'rb') as f:
+            models[name] = joblib.load(f)
         logger.info(f"Loaded model: {name}")
     except Exception as e:
         logger.error(f"Failed to load model {name}: {e}")
@@ -38,16 +39,23 @@ for file, name in model_files.items():
 df = pd.read_csv(os.path.join(models_dir, 'sep28k-mfcc.csv'))
 column_names = df.columns[-13:]
 
+def download_file(url, destination):
+    response = requests.get(url)
+    with open(destination, 'wb') as f:
+        f.write(response.content)
+
 # Function to extract MFCC features
 def extract_mfcc(file_path, max_pad_len=130):
     audio, sample_rate = librosa.load(file_path, res_type='kaiser_fast', sr=None)
     mfccs = librosa.feature.mfcc(y=audio, sr=sample_rate, n_mfcc=13)
+
     # Padding or trimming to ensure consistent length
     if mfccs.shape[1] < max_pad_len:
         pad_width = max_pad_len - mfccs.shape[1]
         mfccs = np.pad(mfccs, pad_width=((0, 0), (0, pad_width)), mode='constant')
     else:
         mfccs = mfccs[:, :max_pad_len]
+
     return np.mean(mfccs.T, axis=0)
 
 @app.route('/')
@@ -56,25 +64,20 @@ def index():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    if 'url' not in request.json:
+    data = request.get_json()
+    if not data or 'url' not in data:
         return jsonify({'error': 'No URL provided'}), 400
-    audio_url = request.json['url']
+
+    url = data['url']
+    temp_wav_path = os.path.join('temp', 'temp_audio.wav')
+    
     try:
-        temp_mp3_path = os.path.join('temp', 'temp_audio.mp3')
-        temp_wav_path = os.path.join('temp', 'temp_audio.wav')
         if not os.path.exists('temp'):
             os.makedirs('temp')
 
         # Download the audio file
-        response = requests.get(audio_url)
-        with open(temp_mp3_path, 'wb') as f:
-            f.write(response.content)
+        download_file(url, temp_wav_path)
 
-        # Convert MP3 to WAV
-        audio = AudioSegment.from_file(temp_mp3_path)
-        audio.export(temp_wav_path, format='wav')
-
-        # Extract MFCC features
         mfcc_features = extract_mfcc(temp_wav_path)
         mfcc_features = mfcc_features.reshape(1, -1)
         mfcc_df = pd.DataFrame(mfcc_features, columns=column_names)
@@ -96,13 +99,14 @@ def predict():
             'stuttering': bool(stuttering_types),
             'types': stuttering_types
         }
+
         return jsonify(result)
-    except KeyError as e:
-        app.logger.error(f"KeyError: {e}")
-        return jsonify({'error': 'Error processing the prediction'}), 500
     except Exception as e:
         app.logger.error(f"Error processing the prediction: {e}")
         return jsonify({'error': 'Error processing the prediction'}), 500
+    finally:
+        if os.path.exists(temp_wav_path):
+            os.remove(temp_wav_path)
 
 if __name__ == '__main__':
     if not os.path.exists('temp'):
