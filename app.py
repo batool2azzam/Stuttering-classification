@@ -4,10 +4,9 @@ import os
 import librosa
 import numpy as np
 import pandas as pd
-import pickle
+import joblib
 import logging
 from pydub import AudioSegment
-from sklearn.ensemble import RandomForestClassifier
 
 app = Flask(__name__)
 CORS(app)
@@ -17,26 +16,25 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Define the base path to the models directory
-models_dir = os.path.join(os.path.dirname(__file__), 'models')
+models2_dir = os.path.join(os.path.dirname(__file__), 'models2')
 
 # Load models with error handling
-models = {}
+models2 = {}
 model_files = {
-    'soundrep_model.pkl': 'soundrep_model',
-    'wordrep_model.pkl': 'wordrep_model',
-    'prolongation_model.pkl': 'prolongation_model'
+    'soundrep_model.joblib': 'soundrep_model',
+    'wordrep_model.joblib': 'wordrep_model',
+    'prolongation_model.joblib': 'prolongation_model'
 }
 
 for file, name in model_files.items():
     try:
-        with open(os.path.join(models_dir, file), 'rb') as f:
-            models[name] = pickle.load(f)
+        models2[name] = joblib.load(os.path.join(models2_dir, file))
         logger.info(f"Loaded model: {name}")
     except Exception as e:
         logger.error(f"Failed to load model {name}: {e}")
 
 # Load the original DataFrame to get column names
-df = pd.read_csv(os.path.join(models_dir, 'sep28k-mfcc.csv'))
+df = pd.read_csv(os.path.join(models2_dir, 'sep28k-mfcc.csv'))
 column_names = df.columns[-13:]
 
 # Function to extract MFCC features
@@ -78,9 +76,9 @@ def predict():
             mfcc_df = pd.DataFrame(mfcc_features, columns=column_names)
 
             # Predict stuttering types
-            soundrep_prediction = models['soundrep_model'].predict(mfcc_df)[0]
-            wordrep_prediction = models['wordrep_model'].predict(mfcc_df)[0]
-            prolongation_prediction = models['prolongation_model'].predict(mfcc_df)[0]
+            soundrep_prediction = models2['soundrep_model'].predict(mfcc_df)[0]
+            wordrep_prediction = models2['wordrep_model'].predict(mfcc_df)[0]
+            prolongation_prediction = models2['prolongation_model'].predict(mfcc_df)[0]
 
             stuttering_types = []
             if soundrep_prediction == 1:

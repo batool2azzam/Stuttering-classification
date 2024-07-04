@@ -26,26 +26,29 @@
 
 # with open('prolongation_model.pkl', 'wb') as f:
 #     pickle.dump(prolongation_model, f)
+import pickle
+import joblib
 import numpy as np
 import pandas as pd
-import pickle
 from sklearn.ensemble import RandomForestClassifier
 
 # Define the base path to the models directory
 models_dir = 'models'
 
 # Create dummy models for demonstration
-# In your actual implementation, you should load and re-save the real models
 soundrep_model = RandomForestClassifier()
 wordrep_model = RandomForestClassifier()
 prolongation_model = RandomForestClassifier()
 
-# Save models with the correct versions
+# Save models with joblib
 model_files = {
     'soundrep_model': soundrep_model,
     'wordrep_model': wordrep_model,
     'prolongation_model': prolongation_model
 }
+
+for name, model in model_files.items():
+    joblib.dump(model, f'{models_dir}/{name}.joblib')
 
 for name, model in model_files.items():
     with open(f'{models_dir}/{name}.pkl', 'wb') as f:
