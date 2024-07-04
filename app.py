@@ -42,14 +42,12 @@ column_names = df.columns[-13:]
 def extract_mfcc(file_path, max_pad_len=130):
     audio, sample_rate = librosa.load(file_path, res_type='kaiser_fast', sr=None)
     mfccs = librosa.feature.mfcc(y=audio, sr=sample_rate, n_mfcc=13)
-
     # Padding or trimming to ensure consistent length
     if mfccs.shape[1] < max_pad_len:
         pad_width = max_pad_len - mfccs.shape[1]
         mfccs = np.pad(mfccs, pad_width=((0, 0), (0, pad_width)), mode='constant')
     else:
         mfccs = mfccs[:, :max_pad_len]
-
     return np.mean(mfccs.T, axis=0)
 
 @app.route('/')
@@ -58,21 +56,25 @@ def index():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    data = request.get_json()
-
-    if 'url' not in data:
+    if 'url' not in request.json:
         return jsonify({'error': 'No URL provided'}), 400
-
-    audio_url = data['url']
-    temp_wav_path = os.path.join('temp', 'temp_audio.wav')
-
+    audio_url = request.json['url']
     try:
-        # Download the audio file from the URL
+        temp_mp3_path = os.path.join('temp', 'temp_audio.mp3')
+        temp_wav_path = os.path.join('temp', 'temp_audio.wav')
+        if not os.path.exists('temp'):
+            os.makedirs('temp')
+
+        # Download the audio file
         response = requests.get(audio_url)
-        with open(temp_wav_path, 'wb') as f:
+        with open(temp_mp3_path, 'wb') as f:
             f.write(response.content)
 
-        # Process the audio file
+        # Convert MP3 to WAV
+        audio = AudioSegment.from_file(temp_mp3_path)
+        audio.export(temp_wav_path, format='wav')
+
+        # Extract MFCC features
         mfcc_features = extract_mfcc(temp_wav_path)
         mfcc_features = mfcc_features.reshape(1, -1)
         mfcc_df = pd.DataFrame(mfcc_features, columns=column_names)
@@ -94,7 +96,6 @@ def predict():
             'stuttering': bool(stuttering_types),
             'types': stuttering_types
         }
-
         return jsonify(result)
     except KeyError as e:
         app.logger.error(f"KeyError: {e}")
