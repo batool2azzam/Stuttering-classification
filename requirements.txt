@@ -8,4 +8,4 @@ scikit-learn==1.3.0
 scipy==1.5.4
 gunicorn==22.0.0
 Werkzeug==2.0.3
-joblib==1.1.0  # Updated joblib to be compatible with scikit-learn and librosa
+joblib==1.1.1  # Updated joblib to satisfy dependencies of both librosa and scikit-learn
